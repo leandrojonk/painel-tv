@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="refresh" content="300">
+<title>Painel da Manhã</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* TV 16:9 em três colunas: relógio e tempo | agenda | trânsito e notícias. Escala pelo vw para ler de longe. */
+:root {
+  --bg: #101820; --panel: #17222c; --line: #24323e;
+  --fg: #eaf0f4; --muted: #8fa1b0;
+  --accent: #f0b35c; --sky: #7fb7d9;
+  --ok: #6fcf97; --warn: #f2c14e; --bad: #ef7b6b;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --s: clamp(12px, .96vw, 24px);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  background-image: radial-gradient(120% 60% at 15% -10%, rgba(240,179,92,.13), transparent 60%);
+  font-family: var(--f-body); font-size: var(--s); line-height: 1.4;
+}
+.wrap {
+  min-height: 100%; box-sizing: border-box;
+  padding: calc(var(--s) * 1.6) max(16px, 2.4vw);
+  display: grid; grid-template-columns: 1fr 1.25fr 1.25fr; gap: calc(var(--s) * 1.4);
+}
+.col { display: flex; flex-direction: column; gap: calc(var(--s) * 1.4); min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: calc(var(--s) * 1.2) calc(var(--s) * 1.4); min-width: 0; }
+.label {
+  font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--muted); font-size: calc(var(--s) * .95); margin: 0 0 calc(var(--s) * .7);
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1em;
+}
+.label small { letter-spacing: .04em; text-transform: none; font-family: var(--f-body); font-weight: 400; font-size: .85em; }
+.tag { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; font-size: .78em; }
+
+.time { font-family: var(--f-display); font-weight: 600; font-size: calc(var(--s) * 7.2); line-height: .9; font-variant-numeric: tabular-nums; }
+.date { font-size: calc(var(--s) * 1.35); color: var(--muted); margin-top: .35em; }
+.updated { font-family: var(--f-mono); font-size: calc(var(--s) * .75); color: var(--muted); margin-top: .8em; }
+.updated.stale { color: var(--warn); }
+
+.day-tag { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); font-size: .85em; margin: 0 0 .35em; }
+.temp-row { display: flex; align-items: flex-end; gap: calc(var(--s) * 1.1); flex-wrap: wrap; }
+.temp-max { font-family: var(--f-display); font-weight: 700; font-size: calc(var(--s) * 4.6); line-height: .9; color: var(--accent); font-variant-numeric: tabular-nums; }
+.temp-min { font-family: var(--f-display); font-weight: 500; font-size: calc(var(--s) * 2.4); line-height: 1; color: var(--sky); font-variant-numeric: tabular-nums; }
+.temp-min span, .temp-max span { font-size: .45em; color: var(--muted); font-weight: 500; margin-left: .15em; }
+.cond { font-size: calc(var(--s) * 1.25); margin: .6em 0 .8em; text-wrap: balance; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: .45em 1.2em; margin: 0; }
+.facts div { display: flex; justify-content: space-between; gap: .6em; border-bottom: 1px solid var(--line); padding-bottom: .3em; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
+.rainbar { height: .5em; border-radius: 99px; background: var(--line); margin-top: .9em; overflow: hidden; }
+.rainbar i { display: block; height: 100%; background: var(--sky); border-radius: 99px; }
+.periods { display: grid; gap: .35em; margin-top: .9em; }
+.periods p { margin: 0; color: var(--muted); }
+.periods b { color: var(--fg); font-weight: 600; margin-right: .4em; }
+.tomorrow { margin-top: 1em; padding-top: .9em; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr; gap: .2em 1em; align-items: baseline; }
+.tomorrow .day-tag { grid-column: 1 / -1; color: var(--sky); }
+.tomorrow .t { font-family: var(--f-display); font-weight: 600; font-size: 2em; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tomorrow .t span { color: var(--sky); }
+.tomorrow p { margin: 0; min-width: 0; }
+.tomorrow small { color: var(--muted); display: block; font-size: .9em; }
+
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.events li { display: grid; grid-template-columns: 5.2em 1fr; gap: 1em; padding: .65em 0; border-top: 1px solid var(--line); align-items: baseline; }
+.events li:first-child { border-top: 0; padding-top: .1em; }
+.events .when { font-family: var(--f-display); font-weight: 600; font-size: 1.45em; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.events .when small { display: block; font-family: var(--f-body); font-weight: 500; font-size: .5em; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.events .what { font-size: 1.15em; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.events .where { display: block; font-size: .8em; color: var(--muted); font-weight: 400; }
+.events li.past { opacity: .45; }
+.events li.now .when { color: var(--ok); }
+.next .when { color: var(--sky); font-size: 1.15em; }
+.next li { grid-template-columns: 7em 1fr; }
+.next .when small { font-size: .65em; }
+.empty { color: var(--muted); font-size: 1.1em; margin: .2em 0; }
+
+.route { display: flex; align-items: center; gap: .6em; color: var(--muted); flex-wrap: wrap; }
+.route b { color: var(--fg); font-weight: 600; }
+.route .dash { flex: 1 1 2em; height: 2px; min-width: 2em; background: repeating-linear-gradient(90deg, var(--muted) 0 6px, transparent 6px 12px); }
+.best { display: flex; align-items: baseline; gap: .6em; flex-wrap: wrap; margin: .7em 0 0; }
+.best .tag { color: var(--accent); }
+.best b { font-size: 1.35em; font-weight: 600; }
+.eta { display: flex; align-items: baseline; gap: .6em; margin: .4em 0 .2em; flex-wrap: wrap; }
+.eta strong { font-family: var(--f-display); font-weight: 700; font-size: calc(var(--s) * 3.6); line-height: 1; font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; border-radius: 99px; font-weight: 600; font-size: .9em; }
+.pill::before { content: ""; width: .55em; height: .55em; border-radius: 50%; background: currentColor; }
+.pill.normal { color: var(--ok); background: rgba(111,207,151,.12); }
+.pill.atencao { color: var(--warn); background: rgba(242,193,78,.12); }
+.pill.lento { color: var(--bad); background: rgba(239,123,107,.12); }
+.via { color: var(--muted); margin: 0 0 .3em; }
+.why { color: var(--muted); margin: .2em 0 .5em; }
+.alts { list-style: none; padding: 0; margin: .3em 0 0; border-top: 1px solid var(--line); }
+.alts li { display: flex; justify-content: space-between; gap: 1em; padding: .4em 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+.alts li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fg); }
+.alerts { list-style: none; padding: 0; margin: .6em 0 0; display: flex; flex-direction: column; gap: .5em; }
+.alerts li { border-left: 3px solid var(--warn); padding: .1em 0 .1em .7em; }
+
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.news li { padding: .6em 0; border-top: 1px solid var(--line); }
+.news li:first-child { border-top: 0; padding-top: .1em; }
+.tag.economia { color: var(--accent); }
+.tag.politica { color: var(--sky); }
+.tag.esportes { color: var(--ok); }
+.news p { margin: .15em 0 0; font-size: 1.02em; text-wrap: pretty; }
+.news .src { color: var(--muted); font-size: .78em; margin-left: .4em; }
+
+@media (max-width: 900px) {
+  :root { --s: 15px; }
+  .wrap { grid-template-columns: 1fr; }
+  .time { font-size: 72px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="col">
+    <section aria-label="Hora">
+      <div class="time" id="time">--:--</div>
+      <div class="date" id="date"></div>
+      <div class="updated" id="updated"></div>
+    </section>
+    <section class="card" aria-labelledby="h-clima">
+      <h2 class="label" id="h-clima">Tempo <small id="cidade"></small></h2>
+      <div id="clima"><p class="empty">Previsão indisponível.</p></div>
+    </section>
+  </div>
+
+  <div class="col" id="col-agenda">
+    <section class="card" aria-labelledby="h-hoje">
+      <h2 class="label" id="h-hoje">Agenda de hoje</h2>
+      <ul class="events" id="hoje"></ul>
+    </section>
+    <section class="card next" aria-labelledby="h-prox">
+      <h2 class="label" id="h-prox">Próximos eventos <small>7 dias</small></h2>
+      <ul class="events" id="proximos"></ul>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card" aria-labelledby="h-trans">
+      <h2 class="label" id="h-trans">Trânsito</h2>
+      <div id="transito"><p class="empty">Trânsito indisponível.</p></div>
+    </section>
+    <section class="card" aria-labelledby="h-news">
+      <h2 class="label" id="h-news">Notícias</h2>
+      <ul class="news" id="noticias"></ul>
+    </section>
+  </div>
+</div>
+
+<script>
+const DADOS = {"atualizadoEm": "2026-11-10T17:00:40-03:00", "data": "2026-11-10", "titulo": "Painel da Manhã", "clima": {"min": 14, "max": 23, "condicao": "Garoa", "chuvaPct": 91, "chuvaMm": "4,2", "cidade": "Palhoça", "vento": "N 16 km/h", "umidade": "57–97%", "uv": "8 · muito alto", "nascer": "05:17", "porDoSol": "18:40", "periodos": [{"nome": "Manhã", "texto": "garoa fraca · chuva 61%"}, {"nome": "Tarde", "texto": "garoa fraca · chuva 69%"}, {"nome": "Noite", "texto": "garoa · chuva 91%"}], "amanha": {"min": 17, "max": 23, "condicao": "Pancadas de chuva fracas", "chuvaPct": 100, "chuvaMm": "8,0", "dia": "Qua 11/11"}}, "transito": {"origem": "Pagani, Palhoça", "destino": "Intelbras, São José", "link": "https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=-27.6414912,-48.6852846&destination=-27.6200706,-48.6497541", "rota": "BR-101 Norte + BR-282", "tempo": "12–20 min", "status": "atencao", "distancia": "7,3 km", "observacao": "estimativa para o pico (sem chave do Google Maps)", "motivo": "Normalmente a mais rápida. Configure a chave do Google Maps para ver o trânsito ao vivo.", "alternativas": [{"rota": "Av. das Torres + Marginal BR-101", "distancia": "6,6 km", "tempo": "15–22 min"}], "alertas": ["Acidente entre carro e ônibus mobiliza Bombeiros Voluntários na BR-101 (Portal Engeplus)", "Motorista fica ferido após colisão entre carro e ônibus na BR-101 em Sangão (Folha Regional)", "Carro fica danificado após colisão com ônibus na BR-101 (Sul. Agora)"]}, "noticias": [{"categoria": "economia", "titulo": "Relacionamento de CEO da Nvidia com suposta espiã facilitou envio de US$ 7,5 bilhões em chips para a China, diz site", "fonte": "Valor Econômico"}, {"categoria": "economia", "titulo": "Indisciplina fiscal exige juros maiores, afirma ata do Copom", "fonte": "Poder360"}, {"categoria": "politica", "titulo": "STF não quer substituir Congresso e governo em debate sobre 6x1, diz Dino", "fonte": "CNN Brasil"}, {"categoria": "politica", "titulo": "PSB deve entrar em federação com PDT e outros três partidos", "fonte": "SBT News"}, {"categoria": "esportes", "titulo": "Sem Marta, Seleção Brasileira Feminina é convocada para amistosos; veja", "fonte": "CNN Brasil"}, {"categoria": "esportes", "titulo": "Mulher suspeita de matar pai de Rony tem prisão preventiva decretada", "fonte": "UOL"}]};
+(function () {
+  const TZ = "America/Sao_Paulo";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const d = DADOS || {};
+
+  function agora() {
+    const x = new Date();
+    return {
+      hm: x.toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }),
+      data: x.toLocaleDateString("pt-BR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }),
+      ymd: x.toLocaleDateString("en-CA", { timeZone: TZ }),
+    };
+  }
+
+  function marcarEventos(hm) {
+    document.querySelectorAll("#hoje li[data-ini]").forEach((li) => {
+      const ini = li.dataset.ini, fim = li.dataset.fim || ini;
+      li.classList.toggle("past", fim <= hm);
+      li.classList.toggle("now", ini <= hm && hm < fim);
+    });
+  }
+
+  function tick() {
+    const p = agora();
+    $("time").textContent = p.hm;
+    $("date").textContent = p.data.charAt(0).toUpperCase() + p.data.slice(1);
+    $("updated").classList.toggle("stale", !!d.data && d.data < p.ymd);
+    marcarEventos(p.hm);
+  }
+
+  if (d.atualizadoEm) {
+    $("updated").textContent = "Atualizado " + new Date(d.atualizadoEm).toLocaleString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  const c = d.clima;
+  if (c) {
+    $("cidade").textContent = c.cidade || "";
+    const chuva = Math.max(0, Math.min(100, Number(c.chuvaPct) || 0));
+    const a = c.amanha;
+    $("clima").innerHTML =
+      '<p class="day-tag">Hoje</p>' +
+      '<div class="temp-row"><div class="temp-max">' + esc(c.max) + '°<span>máx</span></div>' +
+      '<div class="temp-min">' + esc(c.min) + '°<span>mín</span></div></div>' +
+      '<p class="cond">' + esc(c.condicao) + '</p>' +
+      '<dl class="facts">' +
+        '<div><dt>Chuva</dt><dd>' + chuva + '% · ' + esc(c.chuvaMm) + ' mm</dd></div>' +
+        '<div><dt>Vento</dt><dd>' + esc(c.vento) + '</dd></div>' +
+        '<div><dt>Umidade</dt><dd>' + esc(c.umidade) + '</dd></div>' +
+        '<div><dt>UV</dt><dd>' + esc(c.uv) + '</dd></div>' +
+        '<div><dt>Nascer</dt><dd>' + esc(c.nascer) + '</dd></div>' +
+        '<div><dt>Pôr do sol</dt><dd>' + esc(c.porDoSol) + '</dd></div>' +
+      '</dl>' +
+      '<div class="rainbar" aria-hidden="true"><i style="width:' + chuva + '%"></i></div>' +
+      ((c.periodos || []).length ? '<div class="periods">' + c.periodos.map((x) => '<p><b>' + esc(x.nome) + '</b>' + esc(x.texto) + '</p>').join("") + '</div>' : "") +
+      (a ? '<div class="tomorrow"><p class="day-tag">Amanhã' + (a.dia ? ' · ' + esc(a.dia) : '') + '</p>' +
+        '<div class="t">' + esc(a.max) + '° <span>' + esc(a.min) + '°</span></div>' +
+        '<p>' + esc(a.condicao) + '<small>Chuva ' + esc(a.chuvaPct) + '%' + (a.chuvaMm ? ' · ' + esc(a.chuvaMm) + ' mm' : '') + '</small></p></div>' : "");
+  }
+
+  if (!("hoje" in d) && !("proximos" in d)) {
+    $("col-agenda").hidden = true;
+    document.querySelector(".wrap").style.gridTemplateColumns = "1fr 1.4fr";
+  } else {
+    const hoje = d.hoje || [];
+    $("hoje").innerHTML = hoje.length
+      ? hoje.map((e) => '<li' + (e.hora ? ' data-ini="' + esc(e.hora) + '" data-fim="' + esc(e.fim || "") + '"' : '') + '>' +
+          '<span class="when">' + (e.hora ? esc(e.hora) + (e.fim ? '<small>até ' + esc(e.fim) + '</small>' : "") : '<small>Dia todo</small>') + '</span>' +
+          '<span class="what">' + esc(e.titulo) + (e.local ? '<span class="where">' + esc(e.local) + '</span>' : "") + '</span></li>').join("")
+      : '<li><span class="empty">Nenhum compromisso hoje.</span></li>';
+    const prox = d.proximos || [];
+    $("proximos").innerHTML = prox.length
+      ? prox.map((e) => '<li><span class="when">' + esc(e.dia) + '<small>' + esc(e.hora || "dia todo") + '</small></span>' +
+          '<span class="what">' + esc(e.titulo) + (e.local ? '<span class="where">' + esc(e.local) + '</span>' : "") + '</span></li>').join("")
+      : '<li><span class="empty">Nada nos próximos 7 dias.</span></li>';
+  }
+
+  const t = d.transito;
+  if (t) {
+    const st = ["normal", "atencao", "lento"].includes(t.status) ? t.status : "normal";
+    const stTxt = { normal: "Fluxo normal", atencao: "Atenção", lento: "Lento" }[st];
+    $("transito").innerHTML =
+      '<div class="route"><b>' + esc(t.origem) + '</b><span class="dash"></span><b>' + esc(t.destino) + '</b></div>' +
+      '<div class="best"><span class="tag">Melhor rota</span><b>' + esc(t.rota) + '</b></div>' +
+      '<div class="eta"><strong>' + esc(t.tempo) + '</strong><span class="pill ' + st + '">' + stTxt + '</span></div>' +
+      '<p class="via">' + [t.distancia, t.observacao].filter(Boolean).map(esc).join(" · ") + '</p>' +
+      (t.motivo ? '<p class="why">' + esc(t.motivo) + '</p>' : "") +
+      ((t.alternativas || []).length ? '<ul class="alts">' + t.alternativas.map((x) => '<li><span>' + esc(x.rota) + (x.distancia ? ' · ' + esc(x.distancia) : '') + '</span><span>' + esc(x.tempo) + '</span></li>').join("") + '</ul>' : "") +
+      ((t.alertas || []).length ? '<ul class="alerts">' + t.alertas.map((x) => '<li>' + esc(x) + '</li>').join("") + '</ul>' : "");
+  }
+
+  const nomes = { economia: "Economia", politica: "Política", esportes: "Esportes" };
+  const n = d.noticias || [];
+  $("noticias").innerHTML = n.length
+    ? n.map((x) => '<li><span class="tag ' + esc(x.categoria) + '">' + esc(nomes[x.categoria] || x.categoria) + '</span>' +
+        '<p>' + esc(x.titulo) + (x.fonte ? '<span class="src">' + esc(x.fonte) + '</span>' : "") + '</p></li>').join("")
+    : '<li><span class="empty">Sem manchetes no momento.</span></li>';
+
+  tick();
+  setInterval(tick, 15000);
+
+  async function manterAcesa() {
+    try { if ("wakeLock" in navigator && document.visibilityState === "visible") await navigator.wakeLock.request("screen"); } catch (e) {}
+  }
+  manterAcesa();
+  document.addEventListener("visibilitychange", manterAcesa);
+})();
+</script>
+</body>
+</html>
