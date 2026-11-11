@@ -9,17 +9,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-/* TV 16:9 em três colunas: relógio e tempo | agenda | trânsito e notícias. Escala pelo vw para ler de longe. */
+/* TV 16:9 em três colunas: relógio e tempo | mapa de trânsito com as rotas | agenda e notícias. */
 :root {
   --bg: #101820; --panel: #17222c; --line: #24323e;
   --fg: #eaf0f4; --muted: #8fa1b0;
   --accent: #f0b35c; --sky: #7fb7d9;
   --ok: #6fcf97; --warn: #f2c14e; --bad: #ef7b6b;
+  /* cores das rotas, no padrão de apps de mapa */
+  --r-best: #4a8cff; --r-alt: #7d93ad; --r-slow: #f5a524; --r-jam: #e5484d; --r-casing: #0b2340;
   --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  --s: clamp(12px, .96vw, 24px);
+  --s: clamp(12px, .92vw, 24px);
   color-scheme: dark;
 }
 html, body { height: 100%; }
@@ -30,12 +34,12 @@ body {
   font-family: var(--f-body); font-size: var(--s); line-height: 1.4;
 }
 .wrap {
-  min-height: 100%; box-sizing: border-box;
-  padding: calc(var(--s) * 1.6) max(16px, 2.4vw);
-  display: grid; grid-template-columns: 1fr 1.25fr 1.25fr; gap: calc(var(--s) * 1.4);
+  height: 100%; box-sizing: border-box;
+  padding: calc(var(--s) * 1.5) max(16px, 2vw);
+  display: grid; grid-template-columns: 1fr 1.55fr 1.15fr; gap: calc(var(--s) * 1.3);
 }
-.col { display: flex; flex-direction: column; gap: calc(var(--s) * 1.4); min-width: 0; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: calc(var(--s) * 1.2) calc(var(--s) * 1.4); min-width: 0; }
+.col { display: flex; flex-direction: column; gap: calc(var(--s) * 1.3); min-width: 0; min-height: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: calc(var(--s) * 1.1) calc(var(--s) * 1.3); min-width: 0; }
 .label {
   font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
   color: var(--muted); font-size: calc(var(--s) * .95); margin: 0 0 calc(var(--s) * .7);
@@ -44,11 +48,12 @@ body {
 .label small { letter-spacing: .04em; text-transform: none; font-family: var(--f-body); font-weight: 400; font-size: .85em; }
 .tag { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; font-size: .78em; }
 
-.time { font-family: var(--f-display); font-weight: 600; font-size: calc(var(--s) * 7.2); line-height: .9; font-variant-numeric: tabular-nums; }
+.time { font-family: var(--f-display); font-weight: 600; font-size: calc(var(--s) * 7); line-height: .9; font-variant-numeric: tabular-nums; }
 .date { font-size: calc(var(--s) * 1.35); color: var(--muted); margin-top: .35em; }
 .updated { font-family: var(--f-mono); font-size: calc(var(--s) * .75); color: var(--muted); margin-top: .8em; }
 .updated.stale { color: var(--warn); }
 
+/* Tempo */
 .day-tag { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); font-size: .85em; margin: 0 0 .35em; }
 .temp-row { display: flex; align-items: flex-end; gap: calc(var(--s) * 1.1); flex-wrap: wrap; }
 .temp-max { font-family: var(--f-display); font-weight: 700; font-size: calc(var(--s) * 4.6); line-height: .9; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -71,54 +76,79 @@ body {
 .tomorrow p { margin: 0; min-width: 0; }
 .tomorrow small { color: var(--muted); display: block; font-size: .9em; }
 
-.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.events li { display: grid; grid-template-columns: 5.2em 1fr; gap: 1em; padding: .65em 0; border-top: 1px solid var(--line); align-items: baseline; }
-.events li:first-child { border-top: 0; padding-top: .1em; }
-.events .when { font-family: var(--f-display); font-weight: 600; font-size: 1.45em; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
-.events .when small { display: block; font-family: var(--f-body); font-weight: 500; font-size: .5em; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-.events .what { font-size: 1.15em; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
-.events .where { display: block; font-size: .8em; color: var(--muted); font-weight: 400; }
-.events li.past { opacity: .45; }
-.events li.now .when { color: var(--ok); }
-.next .when { color: var(--sky); font-size: 1.15em; }
-.next li { grid-template-columns: 7em 1fr; }
-.next .when small { font-size: .65em; }
-.empty { color: var(--muted); font-size: 1.1em; margin: .2em 0; }
-
-.route { display: flex; align-items: center; gap: .6em; color: var(--muted); flex-wrap: wrap; }
-.route b { color: var(--fg); font-weight: 600; }
-.route .dash { flex: 1 1 2em; height: 2px; min-width: 2em; background: repeating-linear-gradient(90deg, var(--muted) 0 6px, transparent 6px 12px); }
-.best { display: flex; align-items: baseline; gap: .6em; flex-wrap: wrap; margin: .7em 0 0; }
-.best .tag { color: var(--accent); }
-.best b { font-size: 1.35em; font-weight: 600; }
-.eta { display: flex; align-items: baseline; gap: .6em; margin: .4em 0 .2em; flex-wrap: wrap; }
-.eta strong { font-family: var(--f-display); font-weight: 700; font-size: calc(var(--s) * 3.6); line-height: 1; font-variant-numeric: tabular-nums; }
-.pill { display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; border-radius: 99px; font-weight: 600; font-size: .9em; }
+/* Trânsito */
+.traffic { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.trip { display: flex; align-items: baseline; justify-content: space-between; gap: 1em; flex-wrap: wrap; margin-bottom: .6em; }
+.trip .route { color: var(--muted); }
+.trip .route b { color: var(--fg); font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; border-radius: 99px; font-weight: 600; font-size: .9em; white-space: nowrap; }
 .pill::before { content: ""; width: .55em; height: .55em; border-radius: 50%; background: currentColor; }
 .pill.normal { color: var(--ok); background: rgba(111,207,151,.12); }
 .pill.atencao { color: var(--warn); background: rgba(242,193,78,.12); }
 .pill.lento { color: var(--bad); background: rgba(239,123,107,.12); }
-.via { color: var(--muted); margin: 0 0 .3em; }
-.why { color: var(--muted); margin: .2em 0 .5em; }
-.alts { list-style: none; padding: 0; margin: .3em 0 0; border-top: 1px solid var(--line); }
-.alts li { display: flex; justify-content: space-between; gap: 1em; padding: .4em 0; border-bottom: 1px solid var(--line); color: var(--muted); }
-.alts li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fg); }
-.alerts { list-style: none; padding: 0; margin: .6em 0 0; display: flex; flex-direction: column; gap: .5em; }
-.alerts li { border-left: 3px solid var(--warn); padding: .1em 0 .1em .7em; }
+.pill.semdados { color: var(--muted); background: rgba(143,161,176,.12); }
+.map { flex: 1; min-height: 14em; border-radius: 10px; overflow: hidden; background: #0d141b; border: 1px solid var(--line); }
+.map .leaflet-control-attribution { background: rgba(16,24,32,.75); color: var(--muted); font-size: 10px; }
+.map .leaflet-control-attribution a { color: var(--muted); }
+.rl {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+  background: #f4f7fa; color: #1b2733; border-radius: 6px; padding: .15em .5em; line-height: 1.15;
+  font-family: var(--f-body); font-size: calc(var(--s) * .85); box-shadow: 0 2px 8px rgba(0,0,0,.45); text-align: center;
+}
+.rl b { display: block; font-weight: 600; }
+.rl span { font-size: .8em; color: #55697d; }
+.rl.best { background: var(--r-best); color: #fff; }
+.rl.best span { color: #dce8ff; }
+.routes { list-style: none; margin: .7em 0 0; padding: 0; }
+.routes li { display: grid; grid-template-columns: .45em 1fr auto; gap: .8em; align-items: center; padding: .5em 0; border-top: 1px solid var(--line); }
+.routes li:first-child { border-top: 0; }
+.routes .sw { align-self: stretch; border-radius: 99px; background: var(--r-alt); }
+.routes .best .sw { background: var(--r-best); }
+.routes .nm { min-width: 0; }
+.routes .nm b { display: block; font-weight: 500; font-size: 1.05em; overflow-wrap: anywhere; }
+.routes .nm small { color: var(--muted); }
+.routes .nm small.slow { color: var(--r-slow); }
+.routes .tm { text-align: right; font-variant-numeric: tabular-nums; }
+.routes .tm strong { display: block; font-family: var(--f-display); font-weight: 700; font-size: 2em; line-height: 1; }
+.routes .tm small { color: var(--muted); }
+.routes .best .tm strong { color: var(--r-best); font-size: 2.6em; }
+.routes .best .nm b::before { content: "Melhor rota"; display: block; font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; font-size: .72em; color: var(--accent); }
+.legend { display: flex; gap: 1.1em; flex-wrap: wrap; color: var(--muted); font-size: .82em; margin-top: .5em; }
+.legend i { display: inline-block; width: 1.6em; height: .35em; border-radius: 99px; vertical-align: middle; margin-right: .4em; }
+.alerts { list-style: none; padding: 0; margin: .5em 0 0; display: flex; flex-direction: column; gap: .4em; }
+.alerts li { border-left: 3px solid var(--warn); padding: .1em 0 .1em .7em; font-size: .92em; }
 
+/* Agenda */
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.events li { display: grid; grid-template-columns: 4.6em 1fr; gap: .9em; padding: .55em 0; border-top: 1px solid var(--line); align-items: baseline; }
+.events li:first-child { border-top: 0; padding-top: .1em; }
+.events .when { font-family: var(--f-display); font-weight: 600; font-size: 1.4em; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.events .when small { display: block; font-family: var(--f-body); font-weight: 500; font-size: .5em; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.events .what { font-size: 1.05em; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.events .where { display: block; font-size: .8em; color: var(--muted); font-weight: 400; }
+.events li.past { opacity: .45; }
+.events li.now .when { color: var(--ok); }
+.next li { grid-template-columns: 6.4em 1fr; }
+.next .when { color: var(--sky); font-size: 1.1em; }
+.next .when small { font-size: .65em; }
+.empty { color: var(--muted); font-size: 1.05em; margin: .2em 0; }
+
+/* Notícias */
+.newscard { flex: 1; min-height: 0; overflow: hidden; }
 .news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.news li { padding: .6em 0; border-top: 1px solid var(--line); }
+.news li { padding: .5em 0; border-top: 1px solid var(--line); }
 .news li:first-child { border-top: 0; padding-top: .1em; }
 .tag.economia { color: var(--accent); }
 .tag.politica { color: var(--sky); }
 .tag.esportes { color: var(--ok); }
-.news p { margin: .15em 0 0; font-size: 1.02em; text-wrap: pretty; }
+.news p { margin: .1em 0 0; font-size: .98em; text-wrap: pretty; }
 .news .src { color: var(--muted); font-size: .78em; margin-left: .4em; }
 
 @media (max-width: 900px) {
   :root { --s: 15px; }
-  .wrap { grid-template-columns: 1fr; }
+  .wrap { grid-template-columns: 1fr; height: auto; }
   .time { font-size: 72px; }
+  .map { min-height: 320px; }
 }
 </style>
 </head>
@@ -136,23 +166,23 @@ body {
     </section>
   </div>
 
-  <div class="col" id="col-agenda">
-    <section class="card" aria-labelledby="h-hoje">
-      <h2 class="label" id="h-hoje">Agenda de hoje</h2>
-      <ul class="events" id="hoje"></ul>
-    </section>
-    <section class="card next" aria-labelledby="h-prox">
-      <h2 class="label" id="h-prox">Próximos eventos <small>7 dias</small></h2>
-      <ul class="events" id="proximos"></ul>
+  <div class="col">
+    <section class="card traffic" aria-labelledby="h-trans">
+      <h2 class="label" id="h-trans">Trânsito <small id="trans-obs"></small></h2>
+      <div id="transito"><p class="empty">Trânsito indisponível.</p></div>
     </section>
   </div>
 
   <div class="col">
-    <section class="card" aria-labelledby="h-trans">
-      <h2 class="label" id="h-trans">Trânsito</h2>
-      <div id="transito"><p class="empty">Trânsito indisponível.</p></div>
+    <section class="card" aria-labelledby="h-hoje" id="card-hoje">
+      <h2 class="label" id="h-hoje">Agenda de hoje</h2>
+      <ul class="events" id="hoje"></ul>
     </section>
-    <section class="card" aria-labelledby="h-news">
+    <section class="card next" aria-labelledby="h-prox" id="card-prox">
+      <h2 class="label" id="h-prox">Próximos eventos <small>7 dias</small></h2>
+      <ul class="events" id="proximos"></ul>
+    </section>
+    <section class="card newscard" aria-labelledby="h-news">
       <h2 class="label" id="h-news">Notícias</h2>
       <ul class="news" id="noticias"></ul>
     </section>
@@ -160,11 +190,12 @@ body {
 </div>
 
 <script>
-const DADOS = {"atualizadoEm": "2026-11-11T08:06:38-03:00", "data": "2026-11-11", "titulo": "Painel da Manhã", "clima": {"min": 17, "max": 24, "condicao": "Pancadas de chuva fracas", "chuvaPct": 100, "chuvaMm": "7,8", "cidade": "Palhoça", "vento": "N 14 km/h", "umidade": "72–99%", "uv": "7 · alto", "nascer": "05:16", "porDoSol": "18:41", "periodos": [{"nome": "Manhã", "texto": "pancadas de chuva fracas · chuva 93%"}, {"nome": "Tarde", "texto": "garoa · chuva 100%"}, {"nome": "Noite", "texto": "garoa fraca · chuva 100%"}], "amanha": {"min": 17, "max": 25, "condicao": "Trovoadas", "chuvaPct": 100, "chuvaMm": "17,6", "dia": "Qui 12/11"}}, "transito": {"origem": "Pagani, Palhoça", "destino": "Intelbras, São José", "pontoOrigem": [-27.6414912, -48.6852846], "pontoDestino": [-27.6200706, -48.6497541], "rota": "via Rodovia Governador Mário Covas, Rua Tenente Leovegildo Pinheiro", "tempo": "8 min", "distancia": "7,3 km", "status": "semdados", "motivo": "Única rota encontrada agora.", "observacao": "tempos sem trânsito (configure a chave do Google Maps)", "rotas": [{"nome": "via Rodovia Governador Mário Covas, Rua Tenente Leovegildo Pinheiro", "tempo": "8 min", "distancia": "7,3 km", "nota": "sem dados de trânsito", "melhor": true, "coords": [[-27.64146, -48.68529], [-27.64146, -48.68527], [-27.64122, -48.6835], [-27.64135, -48.68351], [-27.64175, -48.68351], [-27.64213, -48.68351], [-27.64223, -48.68353], [-27.64236, -48.6836], [-27.6424, -48.68362], [-27.64242, -48.68364], [-27.64251, -48.68372], [-27.64261, -48.6838], [-27.64279, -48.68385], [-27.64342, -48.68398], [-27.64365, -48.68404], [-27.6437, -48.68407], [-27.64375, -48.68413], [-27.6438, -48.68423], [-27.64377, -48.6843], [-27.64375, -48.68437], [-27.64375, -48.68444], [-27.64376, -48.6845], [-27.64378, -48.68456], [-27.64381, -48.68461], [-27.64384, -48.68466], [-27.64388, -48.6847], [-27.64393, -48.68473], [-27.64398, -48.68475], [-27.64403, -48.68476], [-27.64408, -48.68476], [-27.64413, -48.68476], [-27.64418, -48.68474], [-27.64422, -48.68471], [-27.64427, -48.68467], [-27.64431, -48.68462], [-27.64434, -48.68457], [-27.64436, -48.68451], [-27.64437, -48.68443], [-27.64437, -48.68435], [-27.64441, -48.68403], [-27.64451, -48.68314], [-27.64456, -48.68284], [-27.64461, -48.68252], [-27.64465, -48.68227], [-27.64471, -48.68192], [-27.64478, -48.68151], [-27.64479, -48.68144], [-27.64486, -48.68105], [-27.64495, -48.68045], [-27.64497, -48.68032], [-27.64513, -48.67921], [-27.64524, -48.67854], [-27.64525, -48.67845], [-27.64527, -48.67836], [-27.64531, -48.67808], [-27.64543, -48.67737], [-27.64547, -48.67717], [-27.6455, -48.67694], [-27.64554, -48.67673], [-27.64563, -48.67613], [-27.64565, -48.67599], [-27.64572, -48.67557], [-27.64575, -48.67536], [-27.6458, -48.67503], [-27.64586, -48.67464], [-27.64588, -48.67443], [-27.64595, -48.67398], [-27.64599, -48.67366], [-27.64603, -48.67343], [-27.64616, -48.67247], [-27.64619, -48.67222], [-27.64621, -48.67204], [-27.64682, -48.67249], [-27.64689, -48.67254], [-27.64695, -48.67259], [-27.64699, -48.67257], [-27.64702, -48.67253], [-27.64714, -48.67229], [-27.64717, -48.67221], [-27.64711, -48.67216], [-27.64623, -48.67153], [-27.64473, -48.67044], [-27.64456, -48.67031], [-27.64435, -48.67023], [-27.64403, -48.67013], [-27.64179, -48.6685], [-27.63955, -48.66688], [-27.63937, -48.66674], [-27.6377, -48.66553], [-27.63681, -48.66487], [-27.63591, -48.66421], [-27.63471, -48.66333], [-27.63407, -48.66286], [-27.63382, -48.66267], [-27.63363, -48.66251], [-27.63347, -48.66236], [-27.6333, -48.66219], [-27.63003, -48.65893], [-27.62848, -48.65737], [-27.62833, -48.65722], [-27.6258, -48.65465], [-27.6252, -48.65387], [-27.62378, -48.65246], [-27.6233, -48.65198], [-27.62173, -48.65037], [-27.62152, -48.65015], [-27.62127, -48.64989], [-27.62026, -48.64886], [-27.61942, -48.648], [-27.6192, -48.64778], [-27.61873, -48.6473], [-27.61798, -48.64654], [-27.61698, -48.64552], [-27.61668, -48.64522], [-27.61578, -48.64435], [-27.61573, -48.6443], [-27.61561, -48.64419], [-27.61535, -48.64451], [-27.61556, -48.64472], [-27.61578, -48.64494], [-27.61727, -48.64643], [-27.61749, -48.64665], [-27.61847, -48.64763], [-27.61874, -48.6479], [-27.61917, -48.64834], [-27.62003, -48.64921], [-27.61992, -48.64935], [-27.62006, -48.6495], [-27.62012, -48.64955], [-27.62009, -48.64964], [-27.62009, -48.64967], [-27.6201, -48.6497], [-27.62011, -48.64971]], "trafego": []}]}, "noticias": [{"categoria": "economia", "titulo": "Mega-Sena: ganhador de quase R$ 60 milhões ainda não retirou prêmio", "fonte": "G1"}, {"categoria": "economia", "titulo": "Petrobras vai pagar R$15,3 bi em remuneração aos acionistas Por Reuters", "fonte": "Investing.com Brasil - Finanças, Câmbio e Investimentos"}, {"categoria": "politica", "titulo": "Comissão de Infraestrutura contesta leilão de rodovia entre Rondônia e Mato Grosso", "fonte": "Senado"}, {"categoria": "politica", "titulo": "Mercado pressiona Lula, mas alivia a barra do Congresso e do Judiciário", "fonte": "VEJA"}, {"categoria": "esportes", "titulo": "Raphinha será o capitão da Seleção contra o Japão", "fonte": "ge"}, {"categoria": "esportes", "titulo": "Sem Marta, Seleção Brasileira Feminina é convocada para amistosos; veja", "fonte": "CNN Brasil"}]};
+const DADOS = {"atualizadoEm": "2026-11-11T08:28:40-03:00", "data": "2026-11-11", "titulo": "Painel da Manhã", "clima": {"min": 17, "max": 24, "condicao": "Pancadas de chuva fracas", "chuvaPct": 100, "chuvaMm": "7,8", "cidade": "Palhoça", "vento": "N 14 km/h", "umidade": "72–99%", "uv": "8 · alto", "nascer": "05:16", "porDoSol": "18:41", "periodos": [{"nome": "Manhã", "texto": "pancadas de chuva fracas · chuva 93%"}, {"nome": "Tarde", "texto": "garoa · chuva 100%"}, {"nome": "Noite", "texto": "garoa fraca · chuva 100%"}], "amanha": {"min": 17, "max": 25, "condicao": "Trovoadas", "chuvaPct": 100, "chuvaMm": "17,6", "dia": "Qui 12/11"}}, "hoje": [], "proximos": [{"dia": "Dom 15/11", "hora": "09:00", "titulo": "PAGAR CELESC - DEB AUT SANTANDER", "local": ""}], "transito": {"origem": "Pagani, Palhoça", "destino": "Intelbras, São José", "pontoOrigem": [-27.6414912, -48.6852846], "pontoDestino": [-27.6200706, -48.6497541], "rota": "via Rodovia Governador Mário Covas, Rua Tenente Leovegildo Pinheiro", "tempo": "8 min", "distancia": "7,3 km", "status": "semdados", "motivo": "Única rota encontrada agora.", "observacao": "tempos sem trânsito (configure a chave do Google Maps)", "rotas": [{"nome": "via Rodovia Governador Mário Covas, Rua Tenente Leovegildo Pinheiro", "tempo": "8 min", "distancia": "7,3 km", "nota": "sem dados de trânsito", "melhor": true, "coords": [[-27.64146, -48.68529], [-27.64146, -48.68527], [-27.64122, -48.6835], [-27.64135, -48.68351], [-27.64175, -48.68351], [-27.64213, -48.68351], [-27.64223, -48.68353], [-27.64236, -48.6836], [-27.6424, -48.68362], [-27.64242, -48.68364], [-27.64251, -48.68372], [-27.64261, -48.6838], [-27.64279, -48.68385], [-27.64342, -48.68398], [-27.64365, -48.68404], [-27.6437, -48.68407], [-27.64375, -48.68413], [-27.6438, -48.68423], [-27.64377, -48.6843], [-27.64375, -48.68437], [-27.64375, -48.68444], [-27.64376, -48.6845], [-27.64378, -48.68456], [-27.64381, -48.68461], [-27.64384, -48.68466], [-27.64388, -48.6847], [-27.64393, -48.68473], [-27.64398, -48.68475], [-27.64403, -48.68476], [-27.64408, -48.68476], [-27.64413, -48.68476], [-27.64418, -48.68474], [-27.64422, -48.68471], [-27.64427, -48.68467], [-27.64431, -48.68462], [-27.64434, -48.68457], [-27.64436, -48.68451], [-27.64437, -48.68443], [-27.64437, -48.68435], [-27.64441, -48.68403], [-27.64451, -48.68314], [-27.64456, -48.68284], [-27.64461, -48.68252], [-27.64465, -48.68227], [-27.64471, -48.68192], [-27.64478, -48.68151], [-27.64479, -48.68144], [-27.64486, -48.68105], [-27.64495, -48.68045], [-27.64497, -48.68032], [-27.64513, -48.67921], [-27.64524, -48.67854], [-27.64525, -48.67845], [-27.64527, -48.67836], [-27.64531, -48.67808], [-27.64543, -48.67737], [-27.64547, -48.67717], [-27.6455, -48.67694], [-27.64554, -48.67673], [-27.64563, -48.67613], [-27.64565, -48.67599], [-27.64572, -48.67557], [-27.64575, -48.67536], [-27.6458, -48.67503], [-27.64586, -48.67464], [-27.64588, -48.67443], [-27.64595, -48.67398], [-27.64599, -48.67366], [-27.64603, -48.67343], [-27.64616, -48.67247], [-27.64619, -48.67222], [-27.64621, -48.67204], [-27.64682, -48.67249], [-27.64689, -48.67254], [-27.64695, -48.67259], [-27.64699, -48.67257], [-27.64702, -48.67253], [-27.64714, -48.67229], [-27.64717, -48.67221], [-27.64711, -48.67216], [-27.64623, -48.67153], [-27.64473, -48.67044], [-27.64456, -48.67031], [-27.64435, -48.67023], [-27.64403, -48.67013], [-27.64179, -48.6685], [-27.63955, -48.66688], [-27.63937, -48.66674], [-27.6377, -48.66553], [-27.63681, -48.66487], [-27.63591, -48.66421], [-27.63471, -48.66333], [-27.63407, -48.66286], [-27.63382, -48.66267], [-27.63363, -48.66251], [-27.63347, -48.66236], [-27.6333, -48.66219], [-27.63003, -48.65893], [-27.62848, -48.65737], [-27.62833, -48.65722], [-27.6258, -48.65465], [-27.6252, -48.65387], [-27.62378, -48.65246], [-27.6233, -48.65198], [-27.62173, -48.65037], [-27.62152, -48.65015], [-27.62127, -48.64989], [-27.62026, -48.64886], [-27.61942, -48.648], [-27.6192, -48.64778], [-27.61873, -48.6473], [-27.61798, -48.64654], [-27.61698, -48.64552], [-27.61668, -48.64522], [-27.61578, -48.64435], [-27.61573, -48.6443], [-27.61561, -48.64419], [-27.61535, -48.64451], [-27.61556, -48.64472], [-27.61578, -48.64494], [-27.61727, -48.64643], [-27.61749, -48.64665], [-27.61847, -48.64763], [-27.61874, -48.6479], [-27.61917, -48.64834], [-27.62003, -48.64921], [-27.61992, -48.64935], [-27.62006, -48.6495], [-27.62012, -48.64955], [-27.62009, -48.64964], [-27.62009, -48.64967], [-27.6201, -48.6497], [-27.62011, -48.64971]], "trafego": []}]}, "noticias": [{"categoria": "economia", "titulo": "Mega-Sena: ganhador de quase R$ 60 milhões ainda não retirou prêmio", "fonte": "G1"}, {"categoria": "economia", "titulo": "Nvidia na berlinda: Gigante de IA consegue sobreviver sem Jensen Huang?", "fonte": "CNN Brasil"}, {"categoria": "politica", "titulo": "Mercado pressiona Lula, mas alivia a barra do Congresso e do Judiciário", "fonte": "VEJA"}, {"categoria": "politica", "titulo": "Comissão de Infraestrutura contesta leilão de rodovia entre Rondônia e Mato Grosso", "fonte": "Senado"}, {"categoria": "esportes", "titulo": "Júlio César evitar dar prazo para Corinthians pagar salários atrasados", "fonte": "ESPN Brasil"}, {"categoria": "esportes", "titulo": "Vasco está confiante pela contratação de Carlos Vinícius, do Grêmio", "fonte": "LANCE!"}]};
 (function () {
   const TZ = "America/Sao_Paulo";
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const cor = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const d = DADOS || {};
 
   function agora() {
@@ -196,6 +227,7 @@ const DADOS = {"atualizadoEm": "2026-11-11T08:06:38-03:00", "data": "2026-11-11"
     $("updated").textContent = "Atualizado " + new Date(d.atualizadoEm).toLocaleString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   }
 
+  // ---------------------------------------------------------------- tempo
   const c = d.clima;
   if (c) {
     $("cidade").textContent = c.cidade || "";
@@ -221,9 +253,10 @@ const DADOS = {"atualizadoEm": "2026-11-11T08:06:38-03:00", "data": "2026-11-11"
         '<p>' + esc(a.condicao) + '<small>Chuva ' + esc(a.chuvaPct) + '%' + (a.chuvaMm ? ' · ' + esc(a.chuvaMm) + ' mm' : '') + '</small></p></div>' : "");
   }
 
+  // ---------------------------------------------------------------- agenda
   if (!("hoje" in d) && !("proximos" in d)) {
-    $("col-agenda").hidden = true;
-    document.querySelector(".wrap").style.gridTemplateColumns = "1fr 1.4fr";
+    $("card-hoje").hidden = true;
+    $("card-prox").hidden = true;
   } else {
     const hoje = d.hoje || [];
     $("hoje").innerHTML = hoje.length
@@ -238,20 +271,96 @@ const DADOS = {"atualizadoEm": "2026-11-11T08:06:38-03:00", "data": "2026-11-11"
       : '<li><span class="empty">Nada nos próximos 7 dias.</span></li>';
   }
 
+  // ---------------------------------------------------------------- trânsito
   const t = d.transito;
   if (t) {
-    const st = ["normal", "atencao", "lento"].includes(t.status) ? t.status : "normal";
-    const stTxt = { normal: "Fluxo normal", atencao: "Atenção", lento: "Lento" }[st];
-    $("transito").innerHTML =
-      '<div class="route"><b>' + esc(t.origem) + '</b><span class="dash"></span><b>' + esc(t.destino) + '</b></div>' +
-      '<div class="best"><span class="tag">Melhor rota</span><b>' + esc(t.rota) + '</b></div>' +
-      '<div class="eta"><strong>' + esc(t.tempo) + '</strong><span class="pill ' + st + '">' + stTxt + '</span></div>' +
-      '<p class="via">' + [t.distancia, t.observacao].filter(Boolean).map(esc).join(" · ") + '</p>' +
-      (t.motivo ? '<p class="why">' + esc(t.motivo) + '</p>' : "") +
-      ((t.alternativas || []).length ? '<ul class="alts">' + t.alternativas.map((x) => '<li><span>' + esc(x.rota) + (x.distancia ? ' · ' + esc(x.distancia) : '') + '</span><span>' + esc(x.tempo) + '</span></li>').join("") + '</ul>' : "") +
+    // Compatibilidade com dados antigos (sem a lista "rotas")
+    const rotas = (t.rotas && t.rotas.length) ? t.rotas : [
+      { nome: t.rota, tempo: t.tempo, distancia: t.distancia, nota: t.observacao || "", melhor: true },
+      ...(t.alternativas || []).map((x) => ({ nome: x.rota, tempo: x.tempo, distancia: x.distancia, nota: "" })),
+    ];
+    const comMapa = !!window.L && rotas.some((r) => (r.coords || []).length > 1);
+    const st = ["normal", "atencao", "lento", "semdados"].includes(t.status) ? t.status : "semdados";
+    const stTxt = { normal: "Fluxo normal", atencao: "Atenção", lento: "Lento", semdados: "Sem trânsito ao vivo" }[st];
+    $("trans-obs").textContent = t.observacao || "";
+    const temTrafego = rotas.some((r) => (r.trafego || []).length);
+
+    $("transito").outerHTML =
+      '<div class="trip"><span class="route"><b>' + esc(t.origem) + '</b> → <b>' + esc(t.destino) + '</b></span>' +
+        '<span class="pill ' + st + '">' + stTxt + '</span></div>' +
+      (comMapa ? '<div class="map" id="map" role="img" aria-label="Mapa com as rotas de casa até o trabalho"></div>' : "") +
+      (comMapa && temTrafego ? '<div class="legend"><span><i style="background:var(--r-best)"></i>Livre</span><span><i style="background:var(--r-slow)"></i>Lento</span><span><i style="background:var(--r-jam)"></i>Parado</span><span><i style="background:var(--r-alt)"></i>Alternativa</span></div>' : "") +
+      '<ul class="routes">' + rotas.map((r) =>
+        '<li class="' + (r.melhor ? "best" : "") + '"><i class="sw"></i>' +
+        '<div class="nm"><b>' + esc(r.nome) + '</b><small' + (/lentid/.test(r.nota || "") ? ' class="slow"' : '') + '>' + esc(r.nota || "") + '</small></div>' +
+        '<div class="tm"><strong>' + esc(r.tempo) + '</strong><small>' + esc(r.distancia || "") + '</small></div></li>').join("") +
+      '</ul>' +
       ((t.alertas || []).length ? '<ul class="alerts">' + t.alertas.map((x) => '<li>' + esc(x) + '</li>').join("") + '</ul>' : "");
+
+    if (comMapa) desenharMapa(t, rotas);
   }
 
+  function desenharMapa(t, rotas) {
+    const mapa = L.map("map", {
+      zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+      boxZoom: false, keyboard: false, touchZoom: false, attributionControl: true, zoomSnap: 0.25,
+    });
+    mapa.attributionControl.setPrefix(false);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd", maxZoom: 19, attribution: "© OpenStreetMap © CARTO",
+    }).addTo(mapa);
+
+    const corVel = { SLOW: cor("--r-slow"), TRAFFIC_JAM: cor("--r-jam") };
+    const limites = L.latLngBounds([]);
+    const desenhaveis = rotas.filter((r) => (r.coords || []).length > 1);
+
+    // Alternativas primeiro (embaixo), melhor rota por último (em cima)
+    desenhaveis.filter((r) => !r.melhor).forEach((r) => {
+      L.polyline(r.coords, { color: cor("--r-casing"), weight: 10, opacity: .9 }).addTo(mapa);
+      L.polyline(r.coords, { color: cor("--r-alt"), weight: 6, opacity: .95 }).addTo(mapa);
+      r.coords.forEach((p) => limites.extend(p));
+    });
+    desenhaveis.filter((r) => r.melhor).forEach((r) => {
+      L.polyline(r.coords, { color: cor("--r-casing"), weight: 12 }).addTo(mapa);
+      L.polyline(r.coords, { color: cor("--r-best"), weight: 7 }).addTo(mapa);
+      (r.trafego || []).forEach(([a, b, vel]) => {
+        const trecho = r.coords.slice(a, b + 1);
+        if (trecho.length > 1) L.polyline(trecho, { color: corVel[vel] || cor("--r-best"), weight: 7 }).addTo(mapa);
+      });
+      r.coords.forEach((p) => limites.extend(p));
+    });
+
+    // Etiqueta de cada rota no ponto mais distante das outras rotas
+    desenhaveis.forEach((r) => {
+      const outras = desenhaveis.filter((o) => o !== r).flatMap((o) => o.coords.filter((_, i) => i % 3 === 0));
+      const passo = Math.max(1, Math.floor(r.coords.length / 60));
+      let melhorP = r.coords[Math.floor(r.coords.length / 2)], melhorD = -1;
+      for (let i = Math.floor(r.coords.length * .15); i < r.coords.length * .85; i += passo) {
+        const p = r.coords[i];
+        let min = Infinity;
+        for (const o of outras) { const dl = (p[0] - o[0]) ** 2 + (p[1] - o[1]) ** 2; if (dl < min) min = dl; }
+        if (min > melhorD) { melhorD = min; melhorP = p; }
+      }
+      L.marker(melhorP, {
+        interactive: false, keyboard: false,
+        icon: L.divIcon({ className: "", iconSize: null, html: '<div class="rl' + (r.melhor ? " best" : "") + '"><b>' + esc(r.tempo) + '</b><span>' + esc(r.distancia || "") + '</span></div>' }),
+      }).addTo(mapa);
+    });
+
+    if (t.pontoOrigem) {
+      L.circleMarker(t.pontoOrigem, { radius: 8, color: "#ffffff", weight: 3, fillColor: cor("--r-best"), fillOpacity: 1 }).addTo(mapa);
+      limites.extend(t.pontoOrigem);
+    }
+    if (t.pontoDestino) {
+      L.circleMarker(t.pontoDestino, { radius: 9, color: "#ffffff", weight: 3, fillColor: cor("--r-jam"), fillOpacity: 1 }).addTo(mapa);
+      limites.extend(t.pontoDestino);
+    }
+    const ajustar = () => { mapa.invalidateSize(); mapa.fitBounds(limites, { padding: [40, 40] }); };
+    ajustar();
+    window.addEventListener("resize", ajustar);
+  }
+
+  // ---------------------------------------------------------------- notícias
   const nomes = { economia: "Economia", politica: "Política", esportes: "Esportes" };
   const n = d.noticias || [];
   $("noticias").innerHTML = n.length
